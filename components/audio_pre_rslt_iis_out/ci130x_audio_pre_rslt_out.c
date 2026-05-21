@@ -254,15 +254,10 @@ cm_write_codec(PLAY_PRE_AUDIO_CODEC_ID, (void *)write_pcm_addr, portMAX_DELAY);
             
             
 
-    if (0 == sg_init_tmp_str.send_data_cnt)
-    {
-#if USE_IIS0_OUT_PRE_RSLT_AUDIO
-        cm_start_codec(PLAY_PRE_AUDIO_CODEC_ID, CODEC_OUTPUT);
-#endif
-#if 0//USE_HP_OUT_PRE_RSLT_AUDIO
-        cm_start_codec(PLAY_CODEC_ID, CODEC_OUTPUT);
-#endif
-    }
+    if (3 == sg_init_tmp_str.send_data_cnt)  // 预填3帧（48ms）再启动
+{
+    cm_start_codec(PLAY_PRE_AUDIO_CODEC_ID, CODEC_OUTPUT);
+}
 #endif
 
     sg_init_tmp_str.send_data_cnt++;
