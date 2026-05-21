@@ -179,8 +179,7 @@ void audio_pre_rslt_write_data(int16_t* left,int16_t* right)
         {
            // speex_mutex_take();
           // mprintf("1-----------\r\n");
-            ret = xStreamBufferSend(xSpeexRecordStreamBuffer, src_addr, 256*sizeof(int16_t), pdMS_TO_TICKS(15));
-            if(ret != 256*sizeof(int16_t))
+            ret = xStreamBufferSend(xSpeexRecordStreamBuffer, src_addr, 256*sizeof(int16_t), 0);  
             {   
                 mprintf("xSpeexRecordStreamBuffer send error...\r\n");
             }
@@ -224,7 +223,7 @@ void audio_pre_rslt_write_data(int16_t* left,int16_t* right)
             pcm_data_p[2 * i + 1] = right[i];
         }
     }
-cm_write_codec(PLAY_PRE_AUDIO_CODEC_ID, (void *)write_pcm_addr, 0);
+cm_write_codec(PLAY_PRE_AUDIO_CODEC_ID, (void *)write_pcm_addr, portMAX_DELAY);
 #endif
 
                 #if 0//USE_HP_OUT_PRE_RSLT_AUDIO
