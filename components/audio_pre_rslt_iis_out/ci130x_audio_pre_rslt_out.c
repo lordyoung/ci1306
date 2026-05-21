@@ -149,6 +149,14 @@ void convert_left_and_right(bool r)
 extern ci_speex_t *ci_speex_hander;
 extern StreamBufferHandle_t xSpeexRecordStreamBuffer;
 int8_t dst_addr[128] = {0};
+
+// === 诊断变量（放在 audio_pre_rslt_write_data 上方） ===
+static uint32_t g_write_call_cnt = 0;
+static uint32_t g_write_last_tick = 0;
+
+static uint32_t g_getbuf_wait_cnt = 0; // cm_get_pcm_buffer等待超过阈值计数
+uint32_t g_underrun_cnt = 0;   // DMA无数据计数
+
 void audio_pre_rslt_write_data(int16_t* left,int16_t* right)
 {
     uint32_t block_size = sg_init_tmp_str.init_str.block_size;
@@ -200,10 +208,28 @@ void audio_pre_rslt_write_data(int16_t* left,int16_t* right)
     num = block_size / sizeof(int16_t) / 2;
 
 #if USE_IIS0_OUT_PRE_RSLT_AUDIO
+    // === 诊断1：帧间隔检测 ===
+    g_write_call_cnt++;
+    uint32_t now_tick = xTaskGetTickCount();
+    uint32_t interval_ms = now_tick - g_write_last_tick;
+    if (g_write_call_cnt > 1 && interval_ms > 20) {  // 正常16ms，超过20ms报警
+        mprintf("[IIS0-WARN] frame interval=%dms cnt=%d\r\n", interval_ms, g_write_call_cnt);
+    }
+    g_write_last_tick = now_tick;
+
+    // === 诊断2：cm_get_pcm_buffer 阻塞时长 ===
     uint32_t write_pcm_addr = 0;
-    cm_get_pcm_buffer(PLAY_PRE_AUDIO_CODEC_ID, &write_pcm_addr, portMAX_DELAY); // 阻塞等待空缓冲
-    if (0 == write_pcm_addr)   // null check 移到数据拷贝之前
-    {
+    uint32_t t0 = xTaskGetTickCount();
+    cm_get_pcm_buffer(PLAY_PRE_AUDIO_CODEC_ID, &write_pcm_addr, portMAX_DELAY);
+    uint32_t wait_ms = xTaskGetTickCount() - t0;
+    if (wait_ms > 5) {  // 等待超过5ms就打印
+        g_getbuf_wait_cnt++;
+        mprintf("[IIS0-WARN] cm_get_pcm_buffer waited %dms (total slow=%d)\r\n",
+                wait_ms, g_getbuf_wait_cnt);
+    }
+
+    if (0 == write_pcm_addr) {
+        mprintf("[IIS0-ERR] write_pcm_addr=0 after portMAX_DELAY!\r\n");
         return;
     }
     pcm_data_p = (int16_t *)write_pcm_addr;
@@ -224,6 +250,12 @@ void audio_pre_rslt_write_data(int16_t* left,int16_t* right)
         }
     }
 cm_write_codec(PLAY_PRE_AUDIO_CODEC_ID, (void *)write_pcm_addr, portMAX_DELAY);
+
+    // === 诊断3：每100帧打印一次状态 ===
+    if (g_write_call_cnt % 100 == 0) {
+        mprintf("[IIS0-OK] cnt=%d slow_get=%d underrun=%d\r\n",
+                g_write_call_cnt, g_getbuf_wait_cnt, g_underrun_cnt);
+    }
 #endif
 
                 #if 0//USE_HP_OUT_PRE_RSLT_AUDIO
@@ -256,6 +288,7 @@ cm_write_codec(PLAY_PRE_AUDIO_CODEC_ID, (void *)write_pcm_addr, portMAX_DELAY);
 
     if (3 == sg_init_tmp_str.send_data_cnt)  // 预填3帧（48ms）再启动
 {
+    mprintf("[IIS0] Starting DMA, pre-buffered 3 frames\r\n");
     cm_start_codec(PLAY_PRE_AUDIO_CODEC_ID, CODEC_OUTPUT);
 }
 #endif

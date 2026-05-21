@@ -1115,6 +1115,7 @@ void cm_input_interrupt_handler(IISDMAChax dma_channel, BaseType_t * xHigherPrio
 
 __attribute__((weak)) void send_one_buf_done_event(void * xHigherPriorityTaskWoken){}
 
+extern uint32_t g_underrun_cnt;
 
 void cm_output_interrupt_handler(IISDMAChax dma_channel, BaseType_t * xHigherPriorityTaskWoken)
 {    
@@ -1156,6 +1157,8 @@ void cm_output_interrupt_handler(IISDMAChax dma_channel, BaseType_t * xHigherPri
             play_buffer_queue->data_begin_addr = (uint32_t)cm.zero_buffer;
             play_buffer_queue->data_end_addr = play_buffer_queue->data_begin_addr + code_info_p->play_buffer_info.block_size;//(uint32_t)&cm.zero_buffer[ZERO_BUFFER_SIZE];
             ci_logdebug(LOG_AUDIO_PLAY, "zer,%x\n", play_buffer_queue->data_begin_addr);
+            
+            g_underrun_cnt++;  // DMA欠载计数
         }
         play_buffer_queue->data_current_addr = play_buffer_queue->data_begin_addr;        
     }
